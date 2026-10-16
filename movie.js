@@ -1,77 +1,48 @@
-const movies = [
-  {
-    name: "Inception",
-    price: 150
-  },
-  {
-    name: "The Lion King",
-    price: 120
-  },
-  {
-    name: "Avengers: Endgame",
-    price: 180
-  }
-];
+const EMAILJS_SERVICE_ID = "service_qnsqm74";
+const EMAILJS_TEMPLATE_ID = "YOUR_REAL_TEMPLATE_ID";
 
+const movies = [
+  { name: "Inception", price: 150 },
+  { name: "The Lion King", price: 120 },
+  { name: "Avengers: Endgame", price: 180 }
+];
 
 const bookingForm = document.getElementById("bookingForm");
 const movieSelect = document.getElementById("movie");
-
 const showtimeSelect = document.getElementById("showtime");
-
 const emailInput = document.getElementById("email");
-
 const quantityInput = document.getElementById("quantity");
-
 const totalPrice = document.getElementById("totalPrice");
-
 const bookingList = document.getElementById("bookingList");
-
 const bookingCount = document.getElementById("bookingCount");
-
 const searchBooking = document.getElementById("searchBooking");
-
 const message = document.getElementById("message");
+const bookButton = document.getElementById("bookButton");
 
 let bookings = [];
-
 let nextBookingId = 1;
 
 function getMoviePrice(movieName) {
-
   const selectedMovie = movies.find(function (movie) {
     return movie.name === movieName;
   });
 
-  if (selectedMovie) {
-    return selectedMovie.price;
-  }
-
-  return 0;
+  return selectedMovie ? selectedMovie.price : 0;
 }
 
 function calculateTotal() {
-
   const movieName = movieSelect.value;
-
   const quantity = Number(quantityInput.value);
-
   const price = getMoviePrice(movieName);
 
-  if (
-    movieName !== "" &&
-    Number.isInteger(quantity) &&
-    quantity > 0
-  ) {
+  if (movieName && Number.isInteger(quantity) && quantity > 0) {
     totalPrice.textContent = price * quantity;
   } else {
     totalPrice.textContent = 0;
   }
 }
 
-
 function showMessage(text, type) {
-
   message.textContent = text;
 
   message.style.backgroundColor =
@@ -86,49 +57,46 @@ function showMessage(text, type) {
       : "1px solid #fecaca";
 }
 
-
-bookingForm.addEventListener("submit", function (event) {
-
+bookingForm.addEventListener("submit", async function (event) {
   event.preventDefault();
 
   const movieName = movieSelect.value;
-
   const showtime = showtimeSelect.value;
-
   const email = emailInput.value.trim();
-
   const quantity = Number(quantityInput.value);
 
-  if (movieName === "") {
+  if (!movieName) {
     showMessage("Please select a movie.", "error");
     return;
   }
 
-
-  if (showtime === "") {
+  if (!showtime) {
     showMessage("Please select a showtime.", "error");
     return;
   }
 
-  if (
-    email === "" ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  ) {
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     showMessage("Please enter a valid email address.", "error");
     return;
   }
 
   if (!Number.isInteger(quantity) || quantity <= 0) {
+    showMessage("Ticket quantity must be a positive whole number.", "error");
+    return;
+  }
+
+  if (
+    typeof emailjs === "undefined" ||
+    typeof emailjs.send !== "function"
+  ) {
     showMessage(
-      "Ticket quantity must be a positive whole number.",
+      "EmailJS did not load. Check your internet connection and script setup.",
       "error"
     );
     return;
   }
 
-  const price = getMoviePrice(movieName);
-
-  const total = price * quantity;
+  const total = getMoviePrice(movieName) * quantity;
 
   const booking = {
     id: nextBookingId++,
@@ -139,182 +107,131 @@ bookingForm.addEventListener("submit", function (event) {
     total: total
   };
 
-  
   bookings.push(booking);
-
   displayBookings();
 
-  showMessage(
-    "Booking created successfully! Total: ₹" + total +
-    ". Email confirmation has NOT been sent yet.",
-    "success"
-  );
-
+  // Save the booking details before sending the email.
   bookingForm.reset();
+  totalPrice.textContent = "0";
 
-  totalPrice.textContent = 0;
+  bookButton.disabled = true;
+  bookButton.textContent = "Sending confirmation...";
 
+  try {
+    await emailjs.send(
+      EMAILJS_SERVICE_ID,
+      EMAILJS_TEMPLATE_ID,
+      {
+        to_email: booking.email,
+        movie: booking.movie,
+        showtime: booking.showtime,
+        quantity: booking.quantity,
+        total: booking.total,
+        booking_id: booking.id
+      }
+    );
+
+    showMessage(
+      "Booking created and confirmation email sent! Total: ₹" + booking.total,
+      "success"
+    );
+  } catch (error) {
+    console.error("EmailJS error:", error);
+
+    showMessage(
+      "Booking created, but the confirmation email failed. Check the EmailJS template ID and browser console.",
+      "error"
+    );
+  } finally {
+    bookButton.disabled = false;
+    bookButton.textContent = "🎟️ Book Tickets";
+  }
 });
 
-
 function displayBookings() {
+  const searchText = searchBooking.value.trim().toLowerCase();
 
-  const searchText = searchBooking.value
-    .trim()
-    .toLowerCase();
-
-  // Filter bookings
   const filteredBookings = bookings.filter(function (booking) {
-
-    return booking.movie
-      .toLowerCase()
-      .includes(searchText);
-
+    return booking.movie.toLowerCase().includes(searchText);
   });
 
   bookingList.replaceChildren();
   bookingCount.textContent = bookings.length;
 
   if (filteredBookings.length === 0) {
-
     const emptyMessage = document.createElement("div");
-
     emptyMessage.className = "empty-message";
 
     const heading = document.createElement("h3");
-
-    heading.textContent = bookings.length === 0
-      ? "No bookings yet."
-      : "No matching bookings found.";
+    heading.textContent =
+      bookings.length === 0
+        ? "No bookings yet."
+        : "No matching bookings found.";
 
     const description = document.createElement("p");
-
-    description.textContent = bookings.length === 0
-      ? "Book your favourite movies and see them here!"
-      : "Try searching for another movie.";
+    description.textContent =
+      bookings.length === 0
+        ? "Book your favourite movies and see them here!"
+        : "Try searching for another movie.";
 
     emptyMessage.append(heading, description);
-
     bookingList.appendChild(emptyMessage);
-
     return;
   }
 
   filteredBookings.forEach(function (booking) {
-
     const card = document.createElement("div");
-
     card.className = "booking-card";
 
     const title = document.createElement("h3");
-
     title.textContent = booking.movie;
 
     const showtime = document.createElement("p");
-
     showtime.textContent = "Showtime: " + booking.showtime;
 
     const quantity = document.createElement("p");
-
     quantity.textContent = "Tickets: " + booking.quantity;
 
     const email = document.createElement("p");
-
     email.textContent = "Email: " + booking.email;
 
     const total = document.createElement("p");
-
     total.textContent = "Total: ₹" + booking.total;
 
     const cancelButton = document.createElement("button");
-
     cancelButton.type = "button";
-
     cancelButton.textContent = "Cancel Booking";
-
     cancelButton.className = "cancel-btn";
 
     cancelButton.addEventListener("click", function () {
-
       cancelBooking(booking.id);
-
     });
 
-    card.append(
-      title,
-      showtime,
-      quantity,
-      email,
-      total,
-      cancelButton
-    );
-
+    card.append(title, showtime, quantity, email, total, cancelButton);
     bookingList.appendChild(card);
-
   });
-
 }
 
-
 function cancelBooking(bookingId) {
-
   const previousCount = bookings.length;
 
   bookings = bookings.filter(function (booking) {
-
     return booking.id !== bookingId;
-
   });
 
   if (bookings.length < previousCount) {
-
     displayBookings();
-
-    emailjs.send("service_qnsqm74", "__ejs-test-mail-service__", {
-  to_email: email,
-  movie: movieName,
-  showtime: showtime,
-  quantity: quantity,
-  total: total,
-  booking_id: booking.id
-})
-.then(function () {
-  showMessage(
-    "Booking created successfully! Confirmation email sent. Total: ₹" + total,
-    "success"
-  );
-})
-.catch(function (error) {
-  console.error("EmailJS error:", error);
-  showMessage(
-    "Booking created, but the confirmation email could not be sent. Please check your EmailJS setup.",
-    "error"
-  );
-});
-
+    showMessage("Booking cancelled successfully.", "success");
   }
-
 }
 
-
-searchBooking.addEventListener("input", function () {
-
-  displayBookings();
-
-});
-
+searchBooking.addEventListener("input", displayBookings);
 movieSelect.addEventListener("change", calculateTotal);
-
 quantityInput.addEventListener("input", calculateTotal);
 
-
 bookingForm.addEventListener("reset", function () {
-
-  totalPrice.textContent = 0;
-
+  totalPrice.textContent = "0";
   message.textContent = "";
-
 });
-
 
 displayBookings();
